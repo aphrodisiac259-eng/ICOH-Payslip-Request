@@ -1676,4 +1676,6 @@ async function startServer() {
 
 export default app;
 
-startServer();
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
