@@ -1674,4 +1674,6 @@ async function startServer() {
   });
 }
 
+export default app;
+
 startServer();
