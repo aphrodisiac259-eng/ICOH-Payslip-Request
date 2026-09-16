@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "ICOH Employee profile and identity",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "staffId": { "type": "string", "description": "Unique Staff ID e.g. ICOH-EMP-001", "maxLength": 32, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "fullName": { "type": "string", "description": "Full legal name", "maxLength": 120 },
+        "email": { "type": "string", "description": "Official ICOH email address", "maxLength": 120 },
+        "department": { "type": "string", "description": "Department name or code", "maxLength": 80 },
+        "unit": { "type": "string", "description": "Organizational unit within department", "maxLength": 80 },
+        "designation": { "type": "string", "description": "Official job title or designation", "maxLength": 100 },
+        "employmentStatus": { "type": "string", "description": "Full-time, contract, permanent", "enum": ["Full-Time", "Contract", "Permanent", "Probation"] },
+        "accountStatus": { "type": "string", "description": "Account status", "enum": ["Active", "Inactive", "Suspended"] },
+        "firstLoginComplete": { "type": "boolean", "description": "Whether employee has changed default password" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Record creation timestamp" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "Last recorded login timestamp" }
+      },
+      "required": ["uid", "staffId", "fullName", "email", "department", "accountStatus", "firstLoginComplete"]
+    },
+    "PayslipRequest": {
+      "title": "PayslipRequest",
+      "description": "An official payslip request submitted by an employee",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "description": "Official request reference e.g. ICOH-PS-2026-000001", "maxLength": 64 },
+        "employeeUID": { "type": "string", "description": "UID of requesting employee" },
+        "staffId": { "type": "string", "description": "Staff ID of requesting employee", "maxLength": 32 },
+        "employeeName": { "type": "string", "description": "Full name of requesting employee", "maxLength": 120 },
+        "department": { "type": "string", "description": "Employee department", "maxLength": 80 },
+        "month": { "type": "integer", "description": "Month number 1 to 12" },
+        "year": { "type": "integer", "description": "Calendar year YYYY" },
+        "remarks": { "type": "string", "description": "Optional remarks or specific request details", "maxLength": 500 },
+        "status": { "type": "string", "description": "Current processing state", "enum": ["Pending", "Processing", "Ready", "Completed", "Rejected", "Cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission timestamp" },
+        "submittedAt": { "type": "string", "format": "date-time", "description": "Submission timestamp" },
+        "processedAt": { "type": "string", "format": "date-time", "description": "Timestamp when processing began" },
+        "completedAt": { "type": "string", "format": "date-time", "description": "Timestamp when ready/completed" },
+        "requestedByUID": { "type": "string", "description": "Employee Auth UID" },
+        "processedByUID": { "type": "string", "description": "Admin Auth UID" },
+        "internalNotes": { "type": "string", "description": "Internal remarks by desk officer", "maxLength": 500 }
+      },
+      "required": ["requestId", "employeeUID", "staffId", "month", "year", "status", "requestedByUID"]
+    },
+    "Payslip": {
+      "title": "Payslip",
+      "description": "Uploaded payslip document metadata",
+      "type": "object",
+      "properties": {
+        "payslipId": { "type": "string", "description": "Unique payslip identifier" },
+        "requestId": { "type": "string", "description": "Associated request ID reference", "maxLength": 64 },
+        "employeeUID": { "type": "string", "description": "Owner employee Auth UID" },
+        "staffId": { "type": "string", "description": "Owner employee Staff ID", "maxLength": 32 },
+        "month": { "type": "integer", "description": "Payslip month" },
+        "year": { "type": "integer", "description": "Payslip year" },
+        "storageRef": { "type": "string", "description": "Firebase Storage path or secure token reference", "maxLength": 256 },
+        "fileName": { "type": "string", "description": "Original sanitized filename", "maxLength": 160 },
+        "fileSize": { "type": "integer", "description": "File size in bytes" },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Upload timestamp" },
+        "uploadedByUID": { "type": "string", "description": "Admin UID who uploaded file" },
+        "downloadedAt": { "type": "string", "format": "date-time", "description": "Timestamp of most recent download" },
+        "downloadedByUID": { "type": "string", "description": "UID of person who downloaded" }
+      },
+      "required": ["payslipId", "requestId", "employeeUID", "staffId", "month", "year", "fileName", "uploadedByUID"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification for employee or admin",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "description": "Document ID" },
+        "recipientUID": { "type": "string", "description": "Target recipient UID" },
+        "type": { "type": "string", "description": "Event type", "enum": ["request_submitted", "processing", "ready", "rejected", "completed", "account_event"] },
+        "title": { "type": "string", "description": "Notification headline", "maxLength": 120 },
+        "message": { "type": "string", "description": "Detailed notification text", "maxLength": 500 },
+        "relatedRequestId": { "type": "string", "description": "Optional request ID reference", "maxLength": 64 },
+        "isRead": { "type": "boolean", "description": "Read flag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp created" },
+        "readAt": { "type": "string", "format": "date-time", "description": "Timestamp read" }
+      },
+      "required": ["notificationId", "recipientUID", "type", "title", "message", "isRead", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Administrator or Payroll Desk Officer role and credentials",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "adminId": { "type": "string", "description": "Official Admin ID or Staff ID", "maxLength": 32 },
+        "fullName": { "type": "string", "description": "Administrator full name", "maxLength": 120 },
+        "email": { "type": "string", "description": "Official email address", "maxLength": 120 },
+        "role": { "type": "string", "description": "RBAC Role", "enum": ["SuperAdmin", "PayrollOfficer"] },
+        "permissions": { "type": "string", "description": "Allowed operational permissions" },
+        "status": { "type": "string", "description": "Admin status", "enum": ["Active", "Inactive"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "createdByUID": { "type": "string", "description": "UID of super admin who created this account" }
+      },
+      "required": ["uid", "fullName", "email", "role", "status"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "ICOH organizational department",
+      "type": "object",
+      "properties": {
+        "departmentId": { "type": "string", "description": "Unique department key" },
+        "name": { "type": "string", "description": "Department name", "maxLength": 100 },
+        "code": { "type": "string", "description": "Department code e.g. DENT-01", "maxLength": 20 },
+        "description": { "type": "string", "description": "Department mandate description", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["departmentId", "name", "code"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and operational audit trail",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "description": "Unique audit log ID" },
+        "actorUID": { "type": "string", "description": "UID of user who performed action" },
+        "actorEmail": { "type": "string", "description": "Email or staff ID of actor", "maxLength": 120 },
+        "action": { "type": "string", "description": "Action descriptor e.g. login, request_created, payslip_uploaded", "maxLength": 80 },
+        "targetCollection": { "type": "string", "description": "Collection name affected", "maxLength": 50 },
+        "targetDocId": { "type": "string", "description": "ID of document affected", "maxLength": 100 },
+        "metadata": { "type": "string", "description": "Contextual JSON or note", "maxLength": 1000 },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Server timestamp of event" },
+        "ipAddress": { "type": "string", "description": "Client IP address if available", "maxLength": 45 }
+      },
+      "required": ["logId", "actorUID", "action", "targetCollection", "timestamp"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Configurable portal settings and policies",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "description": "Setting key identifier" },
+        "maxPayslipUploadSizeMB": { "type": "integer", "description": "Maximum payslip PDF size in MB" },
+        "allowedYearRange": { "type": "integer", "description": "How many prior years are requestable" },
+        "organizationName": { "type": "string", "description": "ICOH institutional name", "maxLength": 150 },
+        "supportEmail": { "type": "string", "description": "Payroll desk contact email", "maxLength": 120 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedByUID": { "type": "string" }
+      },
+      "required": ["settingId", "organizationName"]
+    }
+  },
+  "firestore": {
+    "/employees/{uid}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Employees registered with ICOH. Ownership restricted by Auth UID."
+    },
+    "/payslipRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/PayslipRequest" },
+      "description": "Payslip requests submitted by employees. Employees see own, admins see all."
+    },
+    "/payslips/{payslipId}": {
+      "schema": { "$ref": "#/entities/Payslip" },
+      "description": "Payslip records and metadata. Read restricted to owner and admins."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "In-app notifications scoped to recipient UID."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "System administrators and payroll officers with RBAC roles."
+    },
+    "/departments/{departmentId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "ICOH institutional departments list."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only immutable audit trail of all security and data operations."
+    },
+    "/systemSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemSetting" },
+      "description": "Global institutional configuration and policies."
+    }
+  }
+}

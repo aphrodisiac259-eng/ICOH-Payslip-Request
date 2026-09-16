@@ -1,0 +1,75 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper authorization functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role in ['SuperAdmin', 'PayrollOfficer'] ||
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'SuperAdmin' ||
+        (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) &&
+         firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'SuperAdmin' &&
+         firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.status == 'Active')
+      );
+    }
+
+    function isPayrollOfficer() {
+      return isSignedIn() && (
+        request.auth.token.role == 'PayrollOfficer' ||
+        (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) &&
+         firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'PayrollOfficer' &&
+         firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.status == 'Active')
+      );
+    }
+
+    function isAuthorizedAdmin() {
+      return isSuperAdmin() || isPayrollOfficer();
+    }
+
+    function isValidRequest(requestId) {
+      return firestore.exists(/databases/(default)/documents/payslipRequests/$(requestId));
+    }
+
+    function getRequestDoc(requestId) {
+      return firestore.get(/databases/(default)/documents/payslipRequests/$(requestId));
+    }
+
+    // Payslips: accessible only by owning employee and authorized admins
+    match /payslips/{requestId}/{fileName} {
+      // Employees: may read only their own payslip
+      // Authorized Admins: may read authorized payslips
+      allow read: if isSignedIn() && (
+        (isValidRequest(requestId) && getRequestDoc(requestId).data.employeeUID == request.auth.uid) ||
+        isAuthorizedAdmin()
+      );
+
+      // Employees: may never upload, may never replace, may never delete
+      // Payroll Officers & Super Admin: may upload/replace payslips only for valid requests
+      allow create, update: if isSignedIn() &&
+        isAuthorizedAdmin() &&
+        isValidRequest(requestId) &&
+        fileName.matches('^PS-[a-zA-Z0-9_-]+\\.pdf$') &&
+        request.resource.contentType == 'application/pdf' &&
+        request.resource.size > 0 &&
+        request.resource.size <= 10 * 1024 * 1024;
+
+      // Only Super Admin can delete payslip files if administrative correction is required
+      allow delete: if isSignedIn() && isSuperAdmin();
+    }
+
+    // Default deny: Never make any payslips or documents public
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

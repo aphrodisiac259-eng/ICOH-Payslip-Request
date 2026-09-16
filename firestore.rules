@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.role in ['SuperAdmin', 'PayrollOfficer']
+      );
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'SuperAdmin' &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status == 'Active') ||
+        request.auth.token.role == 'SuperAdmin'
+      );
+    }
+
+    function isPayrollOfficer() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'PayrollOfficer' &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status == 'Active') ||
+        request.auth.token.role == 'PayrollOfficer'
+      );
+    }
+
+    function isAuthorizedAdmin() {
+      return isSuperAdmin() || isPayrollOfficer();
+    }
+
+    // Employees collection:
+    // - Employees can read their own profile; admins can read
+    // - Employees must NOT modify: uid, staffId, email, accountStatus, firstLoginComplete, createdAt, role, security fields
+    // - Only explicitly allowlisted profile fields can be updated by employee
+    match /employees/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAuthenticated() && isSuperAdmin();
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isPayrollOfficer() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'residentialAddress', 'nextOfKin', 'nextOfKinPhone', 'emergencyContact', 'unit', 'designation', 'updatedAt'])) ||
+        (request.auth.uid == uid &&
+         request.resource.data.uid == resource.data.uid &&
+         request.resource.data.staffId == resource.data.staffId &&
+         request.resource.data.email == resource.data.email &&
+         request.resource.data.accountStatus == resource.data.accountStatus &&
+         request.resource.data.firstLoginComplete == resource.data.firstLoginComplete &&
+         request.resource.data.createdAt == resource.data.createdAt &&
+         (!('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'residentialAddress', 'nextOfKin', 'nextOfKinPhone', 'emergencyContact', 'updatedAt']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // Payslip Requests:
+    // - Employees may create only their own request with status Pending
+    // - Cannot set status to Processing, Ready, Completed, Rejected, or Cancelled on create
+    // - Cannot tamper with processing fields
+    // - Employees cannot alter processing fields or change status; only admins can process
+    match /payslipRequests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.employeeUID == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() &&
+        request.resource.data.employeeUID == request.auth.uid &&
+        request.resource.data.requestedByUID == request.auth.uid &&
+        request.resource.data.status == 'Pending' &&
+        !('processedByUID' in request.resource.data) &&
+        !('processedByName' in request.resource.data) &&
+        !('processedAt' in request.resource.data) &&
+        !('completedAt' in request.resource.data) &&
+        !('internalNotes' in request.resource.data) &&
+        !('rejectionReason' in request.resource.data) &&
+        !('payslipId' in request.resource.data) &&
+        !('storageRef' in request.resource.data);
+      allow update: if isAuthenticated() && (
+        isAuthorizedAdmin() ||
+        (request.auth.uid == resource.data.employeeUID &&
+         resource.data.status == 'Pending' &&
+         request.resource.data.employeeUID == resource.data.employeeUID &&
+         request.resource.data.requestedByUID == resource.data.requestedByUID &&
+         request.resource.data.status == 'Pending' &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['remarks', 'deliveryEmail', 'updatedAt']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // Payslips:
+    // - Restricted to owning employee and authorized admins
+    // - Never store base64, dataUrl, or public download URLs
+    match /payslips/{payslipId} {
+      allow read: if isAuthenticated() && (resource.data.employeeUID == request.auth.uid || isAuthorizedAdmin());
+      allow create, update: if isAuthenticated() && isAuthorizedAdmin() &&
+        !('dataUrl' in request.resource.data) &&
+        !('dataURL' in request.resource.data) &&
+        !('base64' in request.resource.data) &&
+        !('pdfBinary' in request.resource.data) &&
+        !('downloadUrl' in request.resource.data) &&
+        request.resource.data.storageRef.matches('^payslips/[a-zA-Z0-9_-]+/PS-[a-zA-Z0-9_-]+\\.pdf$');
+      allow delete: if isSuperAdmin();
+    }
+
+    // Notifications:
+    // - Recipient reads and marks read
+    // - Arbitrary client creation is forbidden (generated by trusted server-side Admin SDK)
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (resource.data.recipientUID == request.auth.uid || isAdmin());
+      allow create: if false;
+      allow update: if isAuthenticated() &&
+        resource.data.recipientUID == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+      allow delete: if isAuthenticated() && (resource.data.recipientUID == request.auth.uid || isSuperAdmin());
+    }
+
+    // Admins collection:
+    // - An admin can read their own profile; Super Admin can read and manage all
+    // - Writes strictly restricted to Super Admin
+    match /admins/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isSuperAdmin());
+      allow create, update: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && uid != request.auth.uid;
+    }
+
+    // Audit Logs:
+    // - Ordinary authenticated clients must NOT create arbitrary audit logs
+    // - Written strictly by trusted server-side Admin SDK
+    // - Append-only, immutable, non-deletable by clients
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Departments: all authenticated can view, Super Admin can manage
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // System Settings: all authenticated can view policy limits, Super Admin can configure
+    match /systemSettings/{settingId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+  }
+}
+

@@ -1,0 +1,12 @@
+{
+  "projectId": "icoh-employee-payslip-portal",
+  "appId": "1:630311949497:web:b8c207a9a1e63c632d3768",
+  "apiKey": "AIzaSyDLxr4-m57Xz0a48_BH26nDW-tfwjblCJ8",
+  "authDomain": "icoh-employee-payslip-portal.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "icoh-employee-payslip-portal.firebasestorage.app",
+  "messagingSenderId": "630311949497",
+  "measurementId": "",
+  "oAuthClientId": "",
+  "recaptchaSiteKey": ""
+}

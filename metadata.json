@@ -1,0 +1,6 @@
+{
+  "name": "ICOH Payslip Request Portal",
+  "description": "Production-ready, security-hardened internal employee payslip request portal for the Intercountry Centre for Oral Health for Africa (ICOH).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
